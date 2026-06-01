@@ -1,4 +1,4 @@
-name = "TimedLog"
+name = "REPLTranscript"
 uuid = "e3cf6f4d-9b28-4ea7-9d7d-8f908f8dce64"
 authors = ["WooJoongKim0107 <henrikwjkim@gmail.com>"]
 version = "0.1.0"

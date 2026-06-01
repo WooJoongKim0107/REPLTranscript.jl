@@ -1,9 +1,9 @@
-module TimedLog
+module REPLTranscript
 
 import Dates
 import REPL
 
-export @timelog, enable_repl_log!, disable_repl_log!, default_timelog_path
+export @transcript, start_repl_transcript!, stop_repl_transcript!, default_transcript_path
 
 const _repl_io = Ref{Any}(nothing)
 const _repl_ast = Ref{Any}(nothing)
@@ -12,29 +12,29 @@ const _repl_comment_errors = Ref(false)
 
 timestamp() = Dates.format(Dates.now(), "HH:MM:SS\tu d (e)")
 
-_open_log(io::IO) = io, false
-function _open_log(path::AbstractString)
+_open_transcript(io::IO) = io, false
+function _open_transcript(path::AbstractString)
     dir = dirname(path)
     isempty(dir) || mkpath(dir)
     return open(path, "a"), true
 end
 
 """
-    default_timelog_path()
+    default_transcript_path()
 
-Return the default REPL timelog path.
+Return the default REPL transcript path.
 
-Usually this is `~/.julia/logs/timelog.jl`. More precisely, the file is named
-`timelog.jl` and is placed beside Julia's REPL history file. For example, if
-`ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default timelog path is
-`/tmp/timelog.jl`.
+Usually this is `~/.julia/logs/repl_transcript.jl`. More precisely, the file is
+named `repl_transcript.jl` and is placed beside Julia's REPL history file. For
+example, if `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default transcript
+path is `/tmp/repl_transcript.jl`.
 """
-function default_timelog_path()
+function default_transcript_path()
     history_path = REPL.find_hist_file()
-    return joinpath(dirname(history_path), "timelog.jl")
+    return joinpath(dirname(history_path), "repl_transcript.jl")
 end
 
-_repl_log_path() = something(_repl_io[], default_timelog_path())
+_transcript_path() = something(_repl_io[], default_transcript_path())
 
 function _write_comment(io::IO, text::AbstractString="")
     isempty(text) ? println(io, "#") : println(io, "# ", text)
@@ -57,12 +57,12 @@ end
 
 _write_entry_end(io::IO) = println(io)
 
-function _write_repl_header(io_spec)
-    output_io, should_close = _open_log(io_spec)
+function _write_transcript_header(io_spec)
+    output_io, should_close = _open_transcript(io_spec)
     try
         _write_comment(output_io)
         _write_comment(output_io, "==============================================================================")
-        _write_comment(output_io, "Julia REPL timelog session")
+        _write_comment(output_io, "Julia REPL transcript session")
         _write_comment(output_io, "Started: " * timestamp())
         _write_comment(output_io, "Julia: " * string(VERSION))
         _write_comment(output_io, "Working directory: " * pwd())
@@ -116,7 +116,7 @@ function _write_error(io::IO, expr_str::String, error_str::String; comment_error
     _write_comment_lines(io, "! ", error_str)
 end
 
-function _run_timed(
+function _record_timed(
     f,
     io_spec,
     expr_str::String;
@@ -124,7 +124,7 @@ function _run_timed(
     full_output::Bool=false,
     comment_errors::Bool=false,
 )
-    output_io, should_close = _open_log(io_spec)
+    output_io, should_close = _open_transcript(io_spec)
     try
         start_time = time()
         started = timestamp()
@@ -142,8 +142,8 @@ function _run_timed(
                 end
                 _write_result(output_io, result; full_output)
                 _write_entry_end(output_io)
-            catch log_err
-                @warn "timelog: failed to write result to log" exception=log_err
+            catch transcript_err
+                @warn "REPLTranscript: failed to write result to transcript" exception=transcript_err
             end
             return result
         catch eval_err
@@ -154,8 +154,8 @@ function _run_timed(
                 _write_comment(output_io, "%% " * started * " | elapsed: " * string(round(elapsed; digits=3)) * "s | " * status)
                 _write_error(output_io, expr_str, error_str; comment_errors)
                 _write_entry_end(output_io)
-            catch log_err
-                @warn "timelog: failed to write error to log" exception=log_err
+            catch transcript_err
+                @warn "REPLTranscript: failed to write error to transcript" exception=transcript_err
             end
             rethrow()
         end
@@ -164,19 +164,19 @@ function _run_timed(
     end
 end
 
-function _timelog_expand(io, expr)
+function _transcript_expand(io, expr)
     expr_str = _expr_to_string(expr)
-    run_timed = GlobalRef(@__MODULE__, :_run_timed)
+    record_timed = GlobalRef(@__MODULE__, :_record_timed)
     if expr isa Expr && expr.head == :(=)
         var_name, rhs = expr.args[1], expr.args[2]
         quote
-            $(esc(var_name)) = $run_timed($(esc(io)), $expr_str) do
+            $(esc(var_name)) = $record_timed($(esc(io)), $expr_str) do
                 $(esc(rhs))
             end
         end
     else
         quote
-            $run_timed($(esc(io)), $expr_str) do
+            $record_timed($(esc(io)), $expr_str) do
                 $(esc(expr))
             end
         end
@@ -184,25 +184,25 @@ function _timelog_expand(io, expr)
 end
 
 """
-    @timelog [io] expr
+    @transcript [io] expr
 
 Evaluate `expr` and append a replay-safe timed transcript entry to `io`.
 
 Arguments:
-- `io`: (default=`"timelog.jl"`) log destination. Pass a path such as
+- `io`: (default=`"repl_transcript.jl"`) transcript destination. Pass a path such as
   `"session.jl"` to choose an explicit file.
-- `expr`: Julia expression to evaluate and log.
+- `expr`: Julia expression to evaluate and record.
 
 The expression is written as executable Julia. Timing metadata and displayed
 results are written as comments. If `expr` throws, the failed expression is
 still written as executable Julia, followed by the error as comments.
 """
-macro timelog(io, expr)
-    _timelog_expand(io, expr)
+macro transcript(io, expr)
+    _transcript_expand(io, expr)
 end
 
-macro timelog(expr)
-    _timelog_expand("timelog.jl", expr)
+macro transcript(expr)
+    _transcript_expand("repl_transcript.jl", expr)
 end
 
 function _eval_repl(
@@ -214,7 +214,7 @@ function _eval_repl(
     full_output::Bool,
     comment_errors::Bool,
 )
-    _run_timed(io_spec, expr_str; replay, full_output, comment_errors) do
+    _record_timed(io_spec, expr_str; replay, full_output, comment_errors) do
         Core.eval(mod, REPL.softscope(ast))
     end
 end
@@ -224,7 +224,7 @@ function _is_replayable_repl_ast(ast)
     if ast.head === :toplevel
         return all(_is_replayable_repl_ast, ast.args)
     elseif ast.head === :call && !isempty(ast.args)
-        return ast.args[1] ∉ (:enable_repl_log!, :disable_repl_log!, :exit, :quit)
+        return ast.args[1] ∉ (:start_repl_transcript!, :stop_repl_transcript!, :exit, :quit)
     end
     return true
 end
@@ -235,10 +235,10 @@ function _repl_transform(ast)
     _repl_ast[] = ast
     eval_repl = GlobalRef(@__MODULE__, :_eval_repl)
     repl_ast = GlobalRef(@__MODULE__, :_repl_ast)
-    repl_path = GlobalRef(@__MODULE__, :_repl_log_path)
+    transcript_path = GlobalRef(@__MODULE__, :_transcript_path)
     repl_full_output = GlobalRef(@__MODULE__, :_repl_full_output)
     repl_comment_errors = GlobalRef(@__MODULE__, :_repl_comment_errors)
-    return :($eval_repl(@__MODULE__, $repl_ast[], $expr_str, $repl_path(), $replay, $repl_full_output[], $repl_comment_errors[]))
+    return :($eval_repl(@__MODULE__, $repl_ast[], $expr_str, $transcript_path(), $replay, $repl_full_output[], $repl_comment_errors[]))
 end
 
 function _current_ast_transforms()
@@ -268,47 +268,47 @@ function _remove_repl_transform!(transforms)
 end
 
 """
-    enable_repl_log!([io]; full_output=false, comment_errors=false)
+    start_repl_transcript!([io]; full_output=false, comment_errors=false)
 
-Log each Julia REPL input as a replay-safe timed Julia transcript.
+Record each Julia REPL input as a replay-safe timed Julia transcript.
 
 Arguments:
-- `io`: (default=`default_timelog_path()`) log destination. Pass a path such as
+- `io`: (default=`default_transcript_path()`) transcript destination. Pass a path such as
   `"session.jl"` to choose an explicit file.
 - `full_output`: (default=`false`) when `false`, result displays are shortened
-  to match the REPL. When `true`, complete displayed results are logged.
+  to match the REPL. When `true`, complete displayed results are recorded.
 - `comment_errors`: (default=`false`) when `false`, failed commands remain
   executable so replay can check whether the same command still fails. When
   `true`, failed commands are commented out so replay can continue.
 
 Default path priority:
-1. Explicit path, e.g. `enable_repl_log!("session.jl")` writes to `session.jl`.
-2. Default path, usually `~/.julia/logs/timelog.jl`.
+1. Explicit path, e.g. `start_repl_transcript!("session.jl")` writes to `session.jl`.
+2. Default path, usually `~/.julia/logs/repl_transcript.jl`.
 
-More precisely, `enable_repl_log!()` writes `timelog.jl` beside Julia's REPL
-history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default path
-is `/tmp/timelog.jl`.
+More precisely, `start_repl_transcript!()` writes `repl_transcript.jl` beside
+Julia's REPL history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the
+default path is `/tmp/repl_transcript.jl`.
 """
-function enable_repl_log!(io=default_timelog_path(); full_output::Bool=false, comment_errors::Bool=false)
+function start_repl_transcript!(io=default_transcript_path(); full_output::Bool=false, comment_errors::Bool=false)
     transforms = _current_ast_transforms()
     _repl_io[] = io
     _repl_full_output[] = full_output
     _repl_comment_errors[] = comment_errors
-    _write_repl_header(io)
+    _write_transcript_header(io)
     _insert_repl_transform!(transforms)
-    println("Recording Julia REPL timelog: ", io)
+    println("Recording Julia REPL transcript: ", io)
     return nothing
 end
 
 """
-    disable_repl_log!()
+    stop_repl_transcript!()
 
-Stop automatic REPL timelog recording for the current Julia session.
+Stop automatic REPL transcript recording for the current Julia session.
 
-This removes TimedLog's REPL transform and resets REPL logging options such as
-`full_output` and `comment_errors` to their defaults.
+This removes REPLTranscript's REPL transform and resets REPL transcript options
+such as `full_output` and `comment_errors` to their defaults.
 """
-function disable_repl_log!()
+function stop_repl_transcript!()
     _remove_repl_transform!(_current_ast_transforms())
     _repl_full_output[] = false
     _repl_comment_errors[] = false

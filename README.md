@@ -1,80 +1,24 @@
-# TimedLog.jl
+# REPLTranscript.jl
 
-`TimedLog.jl` records Julia expressions and REPL inputs as timed,
+`REPLTranscript.jl` records Julia expressions and REPL inputs as timed,
 replay-safe `.jl` transcripts.
-
-The package fills a gap between existing tools:
-
-- Julia's built-in REPL history records input and timestamps, but not elapsed
-  time, results, errors, or replay-safe session structure.
-- `REPLHistory.jl` helps retrieve history, but does not time executions or
-  capture results.
-- `Replay.jl` replays instructions, but does not create an ongoing timed REPL
-  transcript.
-- JuliaLogging and LoggingExtras focus on application log events, not REPL
-  command/result transcripts.
 
 ## Philosophy
 
-- Logs are Julia source, not a separate event format.
-- Inputs stay executable so logs can be inspected, edited, and replayed.
+- Transcripts are Julia source, not a separate event format.
+- Inputs stay executable so transcripts can be inspected, edited, and replayed.
 - Timing, results, and errors are comments around the code that produced them.
 - Result displays are shortened by default to match the REPL.
-- `full_output=true` records complete displayed results when needed.
+    - `full_output=true` records complete displayed results when needed.
 - Failed commands stay executable so replay can check whether a bug is fixed.
-- `comment_errors=true` comments out failed commands so replay can continue.
+    - `comment_errors=true` comments out failed commands so replay can continue.
 
-## Usage
-
-### Option 1. Manually log one expression
-
-```julia
-using TimedLog
-
-@timelog "timelog.jl" x = 1 + 2  # log one expression
-```
-
-### Option 2. Automatically log a REPL session
-
-```julia
-enable_repl_log!()
-disable_repl_log!()
-```
-
-Successful entries are written as executable Julia with timing and result
-metadata in comments. Result output uses the same shortened display as the REPL
-unless `full_output=true` is passed. Failed inputs are written as executable
-Julia by default; pass `comment_errors=true` to comment them out instead.
-
-API:
-
-```julia
-enable_repl_log!([io]; full_output=false, comment_errors=false)
-```
-
-- `io`: (default=`default_timelog_path()`) log destination. Pass a path such as
-  `"session.jl"` to choose an explicit file. See [below](#default-path-priority) for details.
-- `full_output`: (default=`false`) when `false`, result displays are shortened
-  to match the REPL. When `true`, complete displayed results are logged.
-- `comment_errors`: (default=`false`) when `false`, failed commands remain
-  executable so replay can check whether the same command still fails. When
-  `true`, failed commands are commented out so replay can continue.
-
-### Default path priority
-
-1. Explicit path, e.g. `enable_repl_log!("session.jl")` writes to `session.jl`.
-2. Default path, usually `~/.julia/logs/timelog.jl`.
-
-More precisely, `enable_repl_log!()` writes `timelog.jl` beside Julia's REPL
-history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default path
-is `/tmp/timelog.jl`.
-
-## Example log
+## Example transcript
 
 ```julia
 #
 # ==============================================================================
-# Julia REPL timelog session
+# Julia REPL transcript session
 # Started: 18:40:13	Jun 1 (Mon)
 # Julia: 1.11.0
 # Working directory: /tmp/demo
@@ -124,7 +68,70 @@ rand(100, 100)
 #  0.0405229  0.721757   0.871807   0.767747     0.886841   0.864378   0.701159
 ```
 
-The generated log is a Julia file, so it can be replayed with `include(log_path)`.
+The generated transcript is a Julia file, so it can be replayed with
+`include(transcript_path)`.
 
 With `comment_errors=true`, the failed command is commented out so replay can
 continue past that entry.
+
+## Usage
+
+### Option 1. Manually record one expression
+
+```julia
+using REPLTranscript
+
+@transcript "repl_transcript.jl" x = 1 + 2  # record one expression
+```
+
+### Option 2. Automatically record a REPL session
+
+```julia
+start_repl_transcript!()
+stop_repl_transcript!()
+```
+
+Successful entries are written as executable Julia with timing and result
+metadata in comments. Result output uses the same shortened display as the REPL
+unless `full_output=true` is passed. Failed inputs are written as executable
+Julia by default; pass `comment_errors=true` to comment them out instead.
+
+API:
+
+```julia
+start_repl_transcript!([io]; full_output=false, comment_errors=false)
+```
+
+- `io`: (default=`default_transcript_path()`) transcript destination. Pass a
+  path such as `"session.jl"` to choose an explicit file. See
+  [below](#default-path-priority) for details.
+- `full_output`: (default=`false`) when `false`, result displays are shortened
+  to match the REPL. When `true`, complete displayed results are recorded.
+- `comment_errors`: (default=`false`) when `false`, failed commands remain
+  executable so replay can check whether the same command still fails. When
+  `true`, failed commands are commented out so replay can continue.
+
+### Default path priority
+
+1. Explicit path, e.g. `start_repl_transcript!("session.jl")` writes to `session.jl`.
+2. Default path, usually `~/.julia/logs/repl_transcript.jl`.
+
+More precisely, `start_repl_transcript!()` writes `repl_transcript.jl` beside
+Julia's REPL history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the
+default path is `/tmp/repl_transcript.jl`.
+
+## Comparison with existing tools
+
+`REPLTranscript.jl` fills a gap between existing tools:
+
+- Julia's built-in REPL history records input and timestamps, but not elapsed
+  time, results, errors, or replay-safe session structure.
+- `REPLHistory.jl` helps retrieve history, but does not time executions or
+  capture results.
+- `Diary.jl` records REPL sessions, but recording is configured only when the
+  REPL starts, cannot be changed for an already-running REPL, and does not
+  capture output or elapsed time.
+- `Replay.jl` replays instructions, but does not create an ongoing timed REPL
+  transcript.
+- JuliaLogging and LoggingExtras focus on application log events, not REPL
+  command/result transcripts.

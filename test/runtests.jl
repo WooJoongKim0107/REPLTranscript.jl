@@ -1,10 +1,10 @@
 using Test
-using TimedLog
+using REPLTranscript
 import REPL
 
-@testset "TimedLog" begin
+@testset "REPLTranscript" begin
     path = tempname() * ".jl"
-    @timelog path replay_value = 1 + 2
+    @transcript path replay_value = 1 + 2
     include(path)
     @test replay_value == 3
     text = read(path, String)
@@ -15,14 +15,14 @@ import REPL
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog._run_timed(path, "collect(1:10000)") do
+    REPLTranscript._record_timed(path, "collect(1:10000)") do
         collect(1:10000)
     end
     @test count(==('\n'), read(path, String)) < 100
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog._run_timed(path, "collect(1:10000)"; full_output=true) do
+    REPLTranscript._record_timed(path, "collect(1:10000)"; full_output=true) do
         collect(1:10000)
     end
     @test count(==('\n'), read(path, String)) > 10000
@@ -30,7 +30,7 @@ import REPL
 
     path = tempname() * ".jl"
     try
-        @timelog path error("boom")
+        @transcript path error("boom")
     catch
     end
     text = read(path, String)
@@ -41,7 +41,7 @@ import REPL
 
     path = tempname() * ".jl"
     try
-        TimedLog._run_timed(path, "error(\"boom\")"; comment_errors=true) do
+        REPLTranscript._record_timed(path, "error(\"boom\")"; comment_errors=true) do
             error("boom")
         end
     catch
@@ -53,37 +53,37 @@ import REPL
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog.enable_repl_log!(path)
+    REPLTranscript.start_repl_transcript!(path)
     @test !any(==("# "), split(read(path, String), '\n'))
-    TimedLog.disable_repl_log!()
+    REPLTranscript.stop_repl_transcript!()
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog.enable_repl_log!(path; full_output=true)
-    @test TimedLog._repl_full_output[]
-    TimedLog.disable_repl_log!()
-    @test !TimedLog._repl_full_output[]
+    REPLTranscript.start_repl_transcript!(path; full_output=true)
+    @test REPLTranscript._repl_full_output[]
+    REPLTranscript.stop_repl_transcript!()
+    @test !REPLTranscript._repl_full_output[]
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog.enable_repl_log!(path; comment_errors=true)
-    @test TimedLog._repl_comment_errors[]
-    TimedLog.disable_repl_log!()
-    @test !TimedLog._repl_comment_errors[]
+    REPLTranscript.start_repl_transcript!(path; comment_errors=true)
+    @test REPLTranscript._repl_comment_errors[]
+    REPLTranscript.stop_repl_transcript!()
+    @test !REPLTranscript._repl_comment_errors[]
     rm(path; force=true)
 
     path = tempname() * ".jl"
-    TimedLog._repl_io[] = path
-    TimedLog._repl_comment_errors[] = true
+    REPLTranscript._repl_io[] = path
+    REPLTranscript._repl_comment_errors[] = true
     ast = Base.parse_input_line("assert false \"what\"")
     try
-        Core.eval(Main, REPL.softscope(TimedLog._repl_transform(ast)))
+        Core.eval(Main, REPL.softscope(REPLTranscript._repl_transform(ast)))
     catch
     end
     text = read(path, String)
     @test occursin("# ! assert false \"what\"", text)
     @test !occursin("Expr(:error", text)
     include(path)
-    TimedLog._repl_comment_errors[] = false
+    REPLTranscript._repl_comment_errors[] = false
     rm(path; force=true)
 end
