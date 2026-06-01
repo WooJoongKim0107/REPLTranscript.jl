@@ -120,6 +120,15 @@ More precisely, `start_repl_transcript!()` writes `repl_transcript.jl` beside
 Julia's REPL history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the
 default path is `/tmp/repl_transcript.jl`.
 
+## Installation
+
+Not registered in the Julia General Registry. Install directly from GitHub:
+
+```julia
+using Pkg
+Pkg.add(url="https://github.com/WooJoongKim0107/REPLTranscript.jl.git")
+```
+
 ## Comparison with existing tools
 
 `REPLTranscript.jl` fills a gap between existing tools:
