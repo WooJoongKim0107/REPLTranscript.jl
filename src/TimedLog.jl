@@ -220,8 +220,15 @@ function _repl_transform(ast)
     return :($eval_repl(@__MODULE__, $repl_ast[], $expr_str, $repl_path(), $replay, $repl_full_output[], $repl_comment_errors[]))
 end
 
-_current_ast_transforms() =
-    isdefined(Base, :active_repl_backend) ? Base.active_repl_backend.ast_transforms : REPL.repl_ast_transforms
+function _current_ast_transforms()
+    if isdefined(Base, :active_repl_backend)
+        backend = Base.active_repl_backend
+        if isnothing(backend) && hasproperty(backend, :ast_transforms)
+            return backend.ast_transforms
+        end
+    end
+    return REPL.repl_ast_transforms
+end
 
 function _insert_repl_transform!(transforms)
     any(xf -> xf === _repl_transform, transforms) && return transforms
