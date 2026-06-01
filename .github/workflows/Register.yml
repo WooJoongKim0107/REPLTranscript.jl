@@ -1,0 +1,20 @@
+name: Register Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to register, or major/minor/patch
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: julia-actions/RegisterAction@v0.3.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
