@@ -223,7 +223,7 @@ end
 function _current_ast_transforms()
     if isdefined(Base, :active_repl_backend)
         backend = Base.active_repl_backend
-        if isnothing(backend) && hasproperty(backend, :ast_transforms)
+        if !isnothing(backend) && hasproperty(backend, :ast_transforms)
             return backend.ast_transforms
         end
     end
@@ -247,21 +247,28 @@ function _remove_repl_transform!(transforms)
 end
 
 """
-    enable_repl_log!(io=default_timelog_path(); full_output=false, comment_errors=false)
+    enable_repl_log!([io]; full_output=false, comment_errors=false)
 
 Log each Julia REPL input as a replay-safe timed Julia transcript.
-By default, result display matches the REPL's shortened output. Pass
-`full_output=true` to log complete result displays.
-Failed commands are logged as executable input by default. Pass
-`comment_errors=true` to comment out failed commands.
 
-Log path priority:
+Arguments:
+- `io`: (default=`default_timelog_path()`) log destination. Pass a path such as
+  `"session.jl"` to choose an explicit file.
+- `full_output`: (default=`false`) when `false`, result displays are shortened
+  to match the REPL. When `true`, complete displayed results are logged.
+- `comment_errors`: (default=`false`) when `false`, failed commands remain
+  executable so replay can check whether the same command still fails. When
+  `true`, failed commands are commented out so replay can continue.
+
+Default path priority:
 1. The explicit `io` argument passed to `enable_repl_log!(io)`.
 2. The default path `joinpath(dirname(REPL.find_hist_file()), "timelogs.jl")`.
 
-`REPL.find_hist_file()` honors `ENV["JULIA_HISTORY"]`; otherwise it defaults
-to `joinpath(DEPOT_PATH[1], "logs", "repl_history.jl")`, so the default timelog
-file is usually `joinpath(DEPOT_PATH[1], "logs", "timelogs.jl")`.
+For example, `enable_repl_log!("session.jl")` writes to `session.jl`.
+If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, then `enable_repl_log!()`
+writes to `/tmp/timelogs.jl`. Otherwise, `REPL.find_hist_file()` typically
+uses `joinpath(DEPOT_PATH[1], "logs", "repl_history.jl")`, so with a first depot
+of `~/.julia`, `enable_repl_log!()` writes to `~/.julia/logs/timelogs.jl`.
 """
 function enable_repl_log!(io=default_timelog_path(); full_output::Bool=false, comment_errors::Bool=false)
     transforms = _current_ast_transforms()
