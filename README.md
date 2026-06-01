@@ -63,11 +63,11 @@ enable_repl_log!([io]; full_output=false, comment_errors=false)
 ### Default path priority
 
 1. Explicit path, e.g. `enable_repl_log!("session.jl")` writes to `session.jl`.
-2. Default path, usually `~/.julia/logs/timelogs.jl`.
+2. Default path, usually `~/.julia/logs/timelog.jl`.
 
-More precisely, `enable_repl_log!()` writes `timelogs.jl` beside Julia's REPL
+More precisely, `enable_repl_log!()` writes `timelog.jl` beside Julia's REPL
 history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default path
-is `/tmp/timelogs.jl`.
+is `/tmp/timelog.jl`.
 
 ## Example log
 

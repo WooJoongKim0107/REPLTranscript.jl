@@ -19,9 +19,19 @@ function _open_log(path::AbstractString)
     return open(path, "a"), true
 end
 
+"""
+    default_timelog_path()
+
+Return the default REPL timelog path.
+
+Usually this is `~/.julia/logs/timelog.jl`. More precisely, the file is named
+`timelog.jl` and is placed beside Julia's REPL history file. For example, if
+`ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default timelog path is
+`/tmp/timelog.jl`.
+"""
 function default_timelog_path()
     history_path = REPL.find_hist_file()
-    return joinpath(dirname(history_path), "timelogs.jl")
+    return joinpath(dirname(history_path), "timelog.jl")
 end
 
 _repl_log_path() = something(_repl_io[], default_timelog_path())
@@ -173,15 +183,26 @@ function _timelog_expand(io, expr)
     end
 end
 
+"""
+    @timelog [io] expr
+
+Evaluate `expr` and append a replay-safe timed transcript entry to `io`.
+
+Arguments:
+- `io`: (default=`"timelog.jl"`) log destination. Pass a path such as
+  `"session.jl"` to choose an explicit file.
+- `expr`: Julia expression to evaluate and log.
+
+The expression is written as executable Julia. Timing metadata and displayed
+results are written as comments. If `expr` throws, the failed expression is
+still written as executable Julia, followed by the error as comments.
+"""
 macro timelog(io, expr)
     _timelog_expand(io, expr)
 end
 
-"""
-Equivalent to `@timelog "timelogs.jl" <expr>`.
-"""
 macro timelog(expr)
-    _timelog_expand("timelogs.jl", expr)
+    _timelog_expand("timelog.jl", expr)
 end
 
 function _eval_repl(
@@ -261,14 +282,12 @@ Arguments:
   `true`, failed commands are commented out so replay can continue.
 
 Default path priority:
-1. The explicit `io` argument passed to `enable_repl_log!(io)`.
-2. The default path `joinpath(dirname(REPL.find_hist_file()), "timelogs.jl")`.
+1. Explicit path, e.g. `enable_repl_log!("session.jl")` writes to `session.jl`.
+2. Default path, usually `~/.julia/logs/timelog.jl`.
 
-For example, `enable_repl_log!("session.jl")` writes to `session.jl`.
-If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, then `enable_repl_log!()`
-writes to `/tmp/timelogs.jl`. Otherwise, `REPL.find_hist_file()` typically
-uses `joinpath(DEPOT_PATH[1], "logs", "repl_history.jl")`, so with a first depot
-of `~/.julia`, `enable_repl_log!()` writes to `~/.julia/logs/timelogs.jl`.
+More precisely, `enable_repl_log!()` writes `timelog.jl` beside Julia's REPL
+history file. If `ENV["JULIA_HISTORY"] == "/tmp/history.jl"`, the default path
+is `/tmp/timelog.jl`.
 """
 function enable_repl_log!(io=default_timelog_path(); full_output::Bool=false, comment_errors::Bool=false)
     transforms = _current_ast_transforms()
@@ -281,6 +300,14 @@ function enable_repl_log!(io=default_timelog_path(); full_output::Bool=false, co
     return nothing
 end
 
+"""
+    disable_repl_log!()
+
+Stop automatic REPL timelog recording for the current Julia session.
+
+This removes TimedLog's REPL transform and resets REPL logging options such as
+`full_output` and `comment_errors` to their defaults.
+"""
 function disable_repl_log!()
     _remove_repl_transform!(_current_ast_transforms())
     _repl_full_output[] = false
